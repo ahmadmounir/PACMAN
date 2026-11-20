@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pacman · İnsan vs Yapay Zeka</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div>
+        <h1>PACMAN</h1>
+        <p>İnsan vs Fayda Tabanlı Yapay Zeka</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span id="roundBadge" class="chip">—</span>
+      <button id="btnPause" class="btn ghost small" title="Duraklat (P)">⏸ Duraklat</button>
+      <button id="btnMenu" class="btn ghost small" title="Ana menü">☰ Menü</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="board-card">
+      <div class="board-wrap" id="boardWrap">
+        <canvas id="board" aria-label="Oyun alanı"></canvas>
+        <!-- Oyun içi kaplama (tur başlangıcı, seviye geçişi, oyun bitti) -->
+        <div id="overlay" class="overlay hidden">
+          <div class="overlay-card" id="overlayCard"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="card player-card">
+        <div class="player-line">
+          <span id="playerIcon" class="player-icon">👤</span>
+          <div>
+            <div class="label">Şu an oynayan</div>
+            <div id="playerName" class="player-name">—</div>
+          </div>
+        </div>
+        <div id="levelName" class="level-name">—</div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="label">Puan</div><div id="hudScore" class="value accent">0</div></div>
+        <div class="stat"><div class="label">Süre</div><div id="hudTime" class="value">00:00.0</div></div>
+        <div class="stat"><div class="label">Kalan yemek</div><div id="hudFood" class="value">0</div></div>
+        <div class="stat"><div class="label">Enerji topu</div><div id="hudPellets" class="value">0</div></div>
+      </div>
+
+      <div class="card power-card">
+        <div class="power-head"><span class="label">Enerji etkisi</span><span id="hudPowerText" class="muted">pasif</span></div>
+        <div class="bar"><div id="hudPowerBar" class="bar-fill"></div></div>
+      </div>
+
+      <div class="card" id="aiCard">
+        <div class="card-title">
+          <span>🤖 Yapay zekanın kararı</span>
+          <div class="speed" id="speedBox" title="Sadece izleme hızıdır; süre oyun zamanıyla ölçülür.">
+            <button data-speed="1" class="active">1×</button>
+            <button data-speed="2">2×</button>
+            <button data-speed="4">4×</button>
+          </div>
+        </div>
+        <table class="util-table">
+          <thead>
+            <tr><th>Yön</th><th title="Anlık ödül">Ödül</th><th title="Yemeğe ulaşma">Yemek</th><th title="Hayalet riski">Hayalet</th><th title="Kaçış analizi">Kaçış</th><th title="Enerji etkisi">Enerji</th><th title="Hareket maliyeti">Maliyet</th><th>Fayda</th></tr>
+          </thead>
+          <tbody id="utilBody"></tbody>
+        </table>
+        <p class="hint">Her adımda geçerli hareketlerin sonuçları fayda fonksiyonuyla puanlanır; en yüksek <b>Fayda</b> seçilir.</p>
+      </div>
+
+      <div class="card" id="helpCard">
+        <div class="card-title"><span>🎮 Kontroller</span></div>
+        <ul class="keys">
+          <li><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> veya <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> hareket</li>
+          <li><kbd>P</kbd> / <kbd>Space</kbd> duraklat</li>
+        </ul>
+      </div>
+
+      <div class="card rules">
+        <div class="card-title"><span>📋 Puanlama</span></div>
+        <ul>
+          <li>Her hareket <b class="neg">−1</b></li>
+          <li>Yemek <b class="pos">+10</b> · Enerji topu <b class="pos">+50</b></li>
+          <li>Hayalet (enerji etkinken) <b class="pos">+200 · 400 · 800 · 1600</b></li>
+          <li>Normal hayalete çarpmak: <b class="neg">OYUN BİTTİ</b></li>
+        </ul>
+      </div>
+
+      <div class="card" id="historyCard">
+        <div class="card-title"><span>🏁 Tur sonuçları</span></div>
+        <div id="history" class="history muted">Henüz tamamlanan tur yok.</div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ===================== BAŞLANGIÇ MENÜSÜ ===================== -->
+  <div id="menu" class="modal">
+    <div class="modal-card">
+      <div class="modal-hero">
+        <span class="logo big" aria-hidden="true"></span>
+        <div>
+          <h2>Pacman · İnsan vs Yapay Zeka</h2>
+          <p class="muted">İki oyuncu aynı haritada, aynı ayarlarla sırayla oynar. Tüm yemekleri toplayan seviyeyi tamamlar.</p>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">1. Önce kim oynasın?</div>
+        <div class="choice" id="firstChoice">
+          <button class="choice-btn active" data-first="human">
+            <span class="ci">👤</span><span><b>İnsan</b><small>Klavye ile oynarsınız</small></span>
+          </button>
+          <button class="choice-btn" data-first="ai">
+            <span class="ci">🤖</span><span><b>Yapay Zeka</b><small>Fayda tabanlı ajan oynar</small></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">2. Seviyeler</div>
+        <select id="levelSelect">
+          <option value="all">Tüm seviyeler (1 → 2 → 3)</option>
+          <option value="0">Yalnızca Seviye 1 · Kolay</option>
+          <option value="1">Yalnızca Seviye 2 · Orta</option>
+          <option value="2">Yalnızca Seviye 3 · Zor</option>
+        </select>
+      </div>
+
+      <div class="rules-grid">
+        <div><b>Kazanan nasıl belirlenir?</b>
+          <ol>
+            <li>Oyunu tamamlama durumu</li>
+            <li>Toplam puan</li>
+            <li>Eşitlikte daha kısa süre</li>
+            <li>Hepsi eşitse beraberlik</li>
+          </ol>
+        </div>
+        <div><b>Hayaletler</b>
+          <ul id="ghostLegend"></ul>
+        </div>
+      </div>
+
+      <button id="btnStart" class="btn primary wide">Oyunu Başlat ▶</button>
+    </div>
+  </div>
+
+  <!-- ===================== SONUÇ EKRANI ===================== -->
+  <div id="results" class="modal hidden">
+    <div class="modal-card results-card">
+      <h2>Sonuçlar</h2>
+      <div id="winnerBanner" class="winner"></div>
+      <div id="resultCards" class="result-cards"></div>
+      <button id="btnAgain" class="btn primary wide">Yeniden Oyna ↺</button>
+    </div>
+  </div>
+
+  <!-- Oyun dosyaları (klasik script: dosyaya çift tıklayınca da çalışır) -->
+  <script src="js/config.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/agent.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    // Oyun dosyaları yüklenemediyse (ör. index.html ZIP içinden açıldıysa) uyarı göster
+    if (!window.PM || !window.PM.Game || !window.PM.Renderer) {
+      document.body.innerHTML =
+        '<div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:80px auto;padding:24px 28px;' +
+        'border-radius:14px;background:#fff3cd;color:#664d03;border:1px solid #ffda6a;line-height:1.6">' +
+        '<h2 style="margin-top:0">Oyun dosyaları bulunamadı</h2>' +
+        '<p>Lütfen önce <b>ZIP dosyasını bir klasöre çıkarın</b> (sağ tık → <i>Tümünü ayıkla</i>), ' +
+        'sonra çıkan klasördeki <b>index.html</b> dosyasına çift tıklayın.</p>' +
+        '<p><b>css</b> ve <b>js</b> klasörleri <b>index.html</b> ile aynı yerde olmalıdır.</p></div>';
+      document.body.style.overflow = 'auto';
+    }
+  </script>
+</body>
+</html>
